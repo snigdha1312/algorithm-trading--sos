@@ -1,0 +1,80 @@
+# importing libraries we need
+import yfinance as yf  # this helps us get stock data from the internet
+import pandas as pd    # to handle the data in table format
+import numpy as np     # to do some math stuff easily
+import matplotlib.pyplot as plt  # for drawing graphs
+
+#   download stock data
+stock = 'INFY.NS'  # using Infosys stock 
+  data = yf.download(stock, start='2020-01-01', end='2024-12-31')  # this gets the data from Jan 2020 to Dec 2024
+
+#  Let’s calculate moving averages 
+data['SMA20'] = data['Close'].rolling(window=20).mean()  # this is average of last 20 days prices
+data['SMA50'] = data['Close'].rolling(window=50).mean() 
+
+
+# If 20-day avg is more than 50-day avg => Buy
+# If 20-day avg is less than 50-day avg => Sell
+data['Signal'] = 0  # start with no signal
+data['Signal'][20:] = np.where(data['SMA20'][20:] > data['SMA50'][20:], 1, 0)  # 1 = Buy Signal
+data['Position'] = data['Signal'].diff()  # this helps us know exactly when to buy or sell
+
+# using matplotlib.pyplot to plot graphs
+plt.figure(figsize=(14, 7))
+plt.plot(data['Close'], label='Price')  # the stock price
+plt.plot(data['SMA20'], label='SMA 20')  # the 20-day average
+plt.plot(data['SMA50'], label='SMA 50')  # the 50-day average
+plt.scatter(data[data['Position'] == 1].index, data[data['Position'] == 1]['Close'], label='Buy', marker='^', color='green')  # green arrows when we buy
+plt.scatter(data[data['Position'] == -1].index, data[data['Position'] == -1]['Close'], label='Sell', marker='v', color='red')  # red arrows when we sell
+plt.title('Moving Average Strategy')
+plt.legend()
+plt.show()
+
+capital = 10_00_000  # I started with ₹10 lakh
+positions = []  # to store all my buy and sell details
+entry_price = 0
+
+# checking each day and applying the buy/sell 
+for i in range(len(data)):
+    if data['Position'].iloc[i] == 1:  # if buy signal comes
+        entry_price = data['Close'].iloc[i]
+        positions.append({'buy_date': data.index[i], 'buy_price': entry_price})
+    elif data['Position'].iloc[i] == -1 and entry_price != 0:  # if sell signal comes and I already bought
+        exit_price = data['Close'].iloc[i]
+        positions[-1]['sell_date'] = data.index[i]
+        positions[-1]['sell_price'] = exit_price
+        positions[-1]['return'] = (exit_price - entry_price) / entry_price
+        entry_price = 0  # reset after selling
+
+# converting to table
+trades = pd.DataFrame(positions)
+total_trades = len(trades)
+trades.dropna(inplace=True) 
+
+# win and loss t
+win_trades = trades[trades['return'] > 0]
+loss_trades = trades[trades['return'] <= 0]
+
+# 6. calculation
+avg_return = trades['return'].mean() * 100
+avg_win = win_trades['return'].mean() * 100
+avg_loss = loss_trades['return'].mean() * 100
+win_loss_ratio = avg_win / abs(avg_loss) if avg_loss != 0 else np.nan
+win_rate = (len(win_trades) / len(trades)) * 100
+
+
+daily_returns = data['Close'].pct_change()
+sharpe_ratio = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252)
+
+# printing the required
+print(" STRATEGY SUMMARY ")
+print(f"Stock: {stock}")
+print("Time Period: 2020 to 2024")
+print("Strategy: Buy when SMA20 > SMA50, Sell when SMA20 < SMA50")
+print(f"Total Trades Done: {total_trades}")
+print(f"Average Return per Trade: {avg_return:.2f}%")
+print(f"Average Return (Winners): {avg_win:.2f}%")
+print(f"Average Return (Losers): {avg_loss:.2f}%")
+print(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
+print(f"Win Rate: {win_rate:.2f}%")
+print(f"Sharpe Ratio: {sharpe_ratio:.2f}")

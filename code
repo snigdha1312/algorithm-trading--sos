@@ -51,7 +51,7 @@ trades = pd.DataFrame(positions)
 total_trades = len(trades)
 trades.dropna(inplace=True) 
 
-# win and loss t
+# win and loss 
 win_trades = trades[trades['return'] > 0]
 loss_trades = trades[trades['return'] <= 0]
 
